@@ -16,6 +16,7 @@ qfloat QPI = QFLOAT(PI);
 qfloat Q2PI = QFLOAT(PI*2.f);
 qfloat QTWO_PI_OVER_SR = QFLOAT(PI*2.f/44100.f);
 qfloat QFLOAT_PHASE_INC = QFLOAT(QFLOAT_SINLUT_SIZE / (M_PI*2.f));
+qfloat Q05 = QFLOAT(0.5);
 
 qfloat QFLOAT(float inp) {
 	float temp = inp * qfloat_1;
@@ -73,35 +74,48 @@ qfloat qexp(qfloat inp) {
 
 
 qfloat qfloat_sinLUT[QFLOAT_SINLUT_SIZE];
-void qfloat_createSinLUT() {
+qfloat qfloat_sawLUT[QFLOAT_SINLUT_SIZE];
+
+#define SIN_LUT 1
+#define SAW_LUT 2
+
+void qfloat_createLUT(qfloat *lut, int type) {
 	float phaseInc = (M_PI*2.0) / (float)QFLOAT_SINLUT_SIZE;
 	float phase = 0;
 	
 	for(int i = 0; i < QFLOAT_SINLUT_SIZE; i++) {
-		qfloat_sinLUT[i] = QFLOAT(sin(phase)
-								  
-								 // + sin(phase*2.0)*0.5
-								 // + sin(phase*3.0) * 0.333333
-								 // + sin(phase*4.0) * 0.25
-								 // + sin(phase*5.0) * 0.2
-								 // + sin(phase*6.0) * 0.166667
-								  );
+		if(type==SIN_LUT) {
+			lut[i] = QFLOAT(sin(phase));
+		} else if(type==SAW_LUT) {
+			float val = 0;
+			for(float j = 1; j < 100.f; j++) {
+				val += sin(phase * j) / j;
+			}
+			lut[i] = QFLOAT(val*0.6); // 0.6 to scale it
+			
+			
+
+		}
+		
 		phase += phaseInc;
 	}
 }
 
 qfloat qfloat_sin(qfloat phase) {
-	// work out offset for phase
-	
 	qfloat pos = qmul(phase, QFLOAT_PHASE_INC);
 	return qfloat_sinLUT[Q_INT(pos)];
 }
 
+qfloat qfloat_saw(qfloat phase) {
+	qfloat pos = qmul(phase, QFLOAT_PHASE_INC);
+	return qfloat_sawLUT[Q_INT(pos)];
+}
 
 
-qfloat qfloat_sin_interp(qfloat phase) {
+qfloat qfloat_interpLUT(qfloat *lut, qfloat phase) {
+	
 	// work out offset for phase
-
+	
 	qfloat pos = qmul(phase, QFLOAT_PHASE_INC);
 	
 	unsigned int i = Q_INT(pos);
@@ -111,24 +125,38 @@ qfloat qfloat_sin_interp(qfloat phase) {
 		j = 0;
 	}
 	
-	qfloat a = qfloat_sinLUT[i];
-	qfloat b = qfloat_sinLUT[j];
-	
-	
 	qfloat m = pos - qfloat_from_int(i);
 	
-
+	
 	qfloat m1 = qfloat_1 - m;
-
-	return qmul(a, m1) + qmul(b, m);
+	
+	return qmul(lut[i], m1) + qmul(lut[j], m);
 }
+
+
+
+qfloat qfloat_sin_interp(qfloat phase) {
+	return qfloat_interpLUT(qfloat_sinLUT, phase);
+	
+}
+
+
+qfloat qfloat_saw_interp(qfloat phase) {
+	return qfloat_interpLUT(qfloat_sawLUT, phase);
+	
+}
+
+
 
 
 
 
 void qinit() {
-	qfloat_createSinLUT();
+	qfloat_createLUT(qfloat_sinLUT, SIN_LUT);
+	qfloat_createLUT(qfloat_sawLUT, SAW_LUT);
 }
+
+
 
 
 
@@ -172,5 +200,7 @@ qfloat qranduf() {
 	return rr;
 }
 
-
-
+qfloat qfloat_to_uint16(qfloat out) {
+	float samp = Q_FLOAT(out);
+	return samp*8000.0;
+}

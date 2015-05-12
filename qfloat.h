@@ -27,14 +27,17 @@ typedef int32_t qfloat;
 //#define Q_SHIFT 24
 
 // max is 2048
-static const qfloat qfloat_1 = 0x00100000; /*!< fix16_t value of 1 */
+//static const qfloat qfloat_1 = 0x00100000; /*!< fix16_t value of 1 */
+//#define Q_SHIFT 20
+
+static const qfloat qfloat_1 = 0x00010000; /*!< fix16_t value of 1 */
+#define Q_SHIFT 16
+
+//static const qfloat qfloat_1 = 0x00040000; /*!< fix16_t value of 1 */
+//#define Q_SHIFT 18
+
 static const qfloat qfloat_m1 = -qfloat_1;
-#define Q_SHIFT 20
-
-//static const qfloat qfloat_1 = 0x00010000; /*!< fix16_t value of 1 */
-//#define Q_SHIFT 16
-
-#define QFLOAT_SINLUT_SIZE 128
+#define QFLOAT_SINLUT_SIZE 256
 
 
 qfloat QFLOAT(float inp);
@@ -52,15 +55,17 @@ static inline qfloat qfloat_from_int(int a)     { return a * qfloat_1; }
 
 qfloat qfloat_sin(qfloat phase);
 qfloat qfloat_sin_interp(qfloat phase);
-
+qfloat qfloat_saw_interp(qfloat phase);
 void qinit();
 
 
 extern qfloat QPI;
 extern qfloat Q2PI;
 extern qfloat QTWO_PI_OVER_SR;
+extern qfloat Q05;
 
 qfloat qexp(qfloat inp);
 
 
 const char *qfloat_to_binary_string(qfloat inp);
+qfloat qfloat_to_uint16(qfloat out);

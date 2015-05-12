@@ -25,6 +25,41 @@
  
  */
 
+
+class QOnePole {
+public:
+	
+	qfloat a0;
+	qfloat b1;
+	
+	qfloat out;
+	QOnePole() {
+		out = 0;
+	}
+	
+	void calcCoeffs(float freq) {
+		// Coefficient calculation:
+		// x = exp(-2.0*pi*freq/samplerate);
+		// a0 = 1.0-x;
+		// b1 = -x;
+		
+		qfloat x = qexp(QFLOAT(-2.0*PI*freq/44100.f));
+		
+		a0 = qfloat_1 - x;
+		b1 = -x;
+	}
+	qfloat lpf(qfloat in) {
+		out = qmul(a0, in) - qmul(b1, out);
+		return out;
+	}
+	qfloat hpf(qfloat in) {
+		return in - lpf(in);
+	}
+};
+
+
+
+
 class QOsc {
 public:
 	qfloat phaseInc;
@@ -33,7 +68,7 @@ public:
 		setFrequency(QFLOAT(200));
 	}
 	
-	qfloat setFrequency(qfloat f) {
+	void setFrequency(qfloat f) {
 		phaseInc = qmul(f, QTWO_PI_OVER_SR);
 	}
 	
@@ -55,7 +90,7 @@ public:
 		setFrequency(QFLOAT(200));
 	}
 	
-	qfloat setFrequency(qfloat f) {
+	void setFrequency(qfloat f) {
 		phaseInc = qmul(f, QTWO_PI_OVER_SR);
 	}
 	
@@ -63,9 +98,87 @@ public:
 		phase += phaseInc;
 		if(phase>Q2PI) {
 			phase -= Q2PI;
+			
 		}
-		return qfloat_1 - qdiv(phase, QPI);
+		return qfloat_saw_interp(phase);
 	}
+};
+
+// maps [-1, 1]  to  [0, 1]
+qfloat qlfo(qfloat val);
+
+
+
+// single shot drum envelope (just attack and release)
+class QAREnvelope {
+public:
+	
+	enum {
+		NONE,
+		ATTACKING,
+		RELEASING
+	};
+	qfloat Q1_44100;
+	QAREnvelope() {
+		Q1_44100 = QFLOAT(1.f/44100.f);
+		pos = -1;
+		
+		currVal = 0;
+		STATE = NONE;
+		
+		setEnvelope(QFLOAT(0.001), QFLOAT(0.1));
+	}
+	
+	void setEnvelope(qfloat attackTime, qfloat releaseTime) {
+		setAttack(attackTime);
+		setRelease(releaseTime);
+	}
+	
+	void setAttack(qfloat attack) {
+		attackDelta  = qmul(qdiv(qfloat_1, attack), Q1_44100);
+	}
+	
+	void setRelease(qfloat release) {
+		releaseDelta = qmul(qdiv(qfloat_1, release), Q1_44100);
+	}
+	
+	qfloat currVal;
+	int STATE;
+	
+	
+	qfloat getSample() {
+		
+		if(STATE==ATTACKING) {
+			currVal += attackDelta;
+			if(currVal>qfloat_1) {
+				STATE = RELEASING;
+				currVal = qfloat_1;
+			}
+			// give it a nice curve on the way out
+			return qmul(currVal, currVal);
+			
+		} else if(STATE==RELEASING) {
+			currVal -= releaseDelta;
+			if(currVal<0) {
+				currVal = 0;
+				STATE = NONE;
+			}
+			// give it a nice curve on the way out
+			return qmul(currVal, currVal);
+			
+		} else {
+			return 0;
+		}
+	}
+	
+	void trigger() {
+		STATE = ATTACKING;
+	}
+private:
+	int pos;
+	qfloat attackDelta;
+	qfloat releaseDelta;
+	
 };
 
 
@@ -102,21 +215,22 @@ static inline qfloat qclip(qfloat inp) {
 }
 
 
-
 class QKarplusStrong {
 public:
-	qfloat buffer[512];
+#define KARPLUS_STRONG_MAX_DELAY 1024
+	qfloat buffer[KARPLUS_STRONG_MAX_DELAY];
 	int inputPos;
 	int outputPos;
 	int DELAY_SIZE;
 	int pos;
 	qfloat decay;
 	QKarplusStrong() {
-		decay = QFLOAT(0.999);
+		decay = QFLOAT(0.99);
 		inputPos = 0;
 		outputPos = 1;
 		DELAY_SIZE = 512;
 		pos = 0;
+		setCoeffs(QFLOAT(0.5));
 	}
 	
 	qfloat getDelayedValue() {
@@ -140,16 +254,16 @@ public:
 	}
 	
 	void setLength(int length) {
-		if(length>512) length = 512;
+		if(length>KARPLUS_STRONG_MAX_DELAY) length = KARPLUS_STRONG_MAX_DELAY;
 		DELAY_SIZE = length;
 	}
 	void trigger() {
 		pos = 0;
 	}
 	qfloat getSample() {
-		if(pos<20) pos++;
+		if(pos<50) pos++;
 		qfloat noise = QFLOAT(qranduf());
-		if(pos>=20) {
+		if(pos>=50) {
 			noise = 0;
 		}
 		qfloat out = noise + filter.filter(getDelayedValue());
@@ -159,37 +273,6 @@ public:
 };
 
 
-
-class QOnePole {
-public:
-	
-	qfloat a0;
-	qfloat b1;
-	
-	qfloat out;
-	QOnePole() {
-		out = 0;
-	}
-	
-	void calcCoeffs(float freq) {
-		// Coefficient calculation:
-		// x = exp(-2.0*pi*freq/samplerate);
-		// a0 = 1.0-x;
-		// b1 = -x;
-		
-		qfloat x = qexp(QFLOAT(-2.0*PI*freq/44100.f));
-		
-		a0 = qfloat_1 - x;
-		b1 = -x;
-	}
-	qfloat lpf(qfloat in) {
-		out = qmul(a0, in) - qmul(b1, out);
-		return out;
-	}
-	qfloat hpf(qfloat in) {
-		return in - lpf(in);
-	}
-};
 
 
 

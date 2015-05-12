@@ -7,3 +7,8 @@
 //
 
 #include "qdsp.h"
+
+
+qfloat qlfo(qfloat val) {
+	return qmul(qfloat_1 + val, Q05);
+}
