@@ -17,46 +17,53 @@ qfloat Q2PI = QFLOAT(PI*2.f);
 qfloat QTWO_PI_OVER_SR = QFLOAT(PI*2.f/44100.f);
 qfloat QFLOAT_PHASE_INC = QFLOAT(QFLOAT_SINLUT_SIZE / (M_PI*2.f));
 qfloat Q05 = QFLOAT(0.5);
+unsigned char QFLOAT_LFLOAT_SHIFT = Q_SHIFT - L_SHIFT;
 
 qfloat QFLOAT(float inp) {
 	float temp = inp * qfloat_1;
 	return (qfloat) temp;
 }
+
+lfloat LFLOAT(float inp) {
+	float tmp = inp * lfloat_1;
+	return (lfloat) tmp;
+}
+
+
+// convert from q257 to qfloat
+qfloat L_Q(lfloat inp) {
+	return inp << (QFLOAT_LFLOAT_SHIFT);
+}
+
+lfloat Q_L(qfloat inp) {
+	return inp >> (QFLOAT_LFLOAT_SHIFT);
+}
+
 float Q_FLOAT(qfloat fl) {
 	return (float) fl / qfloat_1;
 }
 
-
-int Q_INT(qfloat inp) {
-	return inp >> Q_SHIFT;
+float L_FLOAT(lfloat fl) {
+	return (float) fl / lfloat_1;
 }
 
 
+
 qfloat qmul(qfloat a, qfloat b) {
-	
 	int64_t m = (int64_t) a * b;
-	
-//	I think this does rounding
-//	#define K   (1 << (Q-1))
-//	m += K;
-	
-	
 	qfloat r = m >> Q_SHIFT;
-	
 	return r;
 }
 
 qfloat qdiv(qfloat a, qfloat b) {
 	int64_t d = (int64_t) a << Q_SHIFT;
-//	I think this does rounding
-//	d += b / 2;
 	return d / b;
 }
 
 
 // this is pretty rough, uses the expansion on the wikipedia page
 // for the exponential function
-qfloat qexp(qfloat inp) {
+/*qfloat qexp(qfloat inp) {
 	qfloat out = qfloat_1 + inp;
 
 	qfloat x = inp;
@@ -70,7 +77,31 @@ qfloat qexp(qfloat inp) {
 		out += qdiv(x, div);
 	}
 	return out;
-}
+}*/
+
+
+ // alternate version, untested
+ qfloat qexp(qfloat x) {
+	qfloat term = qfloat_1;
+	qfloat sum = 0.0;
+	qfloat n = qfloat_1;
+	
+//	 int its = 0;
+	while(n <= x) {
+		
+	here: sum = sum + term;
+//		its++;
+		term = qdiv(qmul(term, x), n);
+		n += qfloat_1;
+		if(term < 10000) break;
+		else goto here;
+	}
+//	 printf("its: %d\n", its);
+	return sum;
+ }
+ 
+
+
 
 
 qfloat qfloat_sinLUT[QFLOAT_SINLUT_SIZE];
@@ -200,7 +231,23 @@ qfloat qranduf() {
 	return rr;
 }
 
+
+int randi(int max) {
+	next = next * 1103515245 + 12345;
+	int i = next;
+	if(i<0) i = -i;
+	return i % max;
+}
+
+
+int randi(int min, int max) {
+	next = next * 1103515245 + 12345;
+	int i = next;
+	if(i<0) i = -i;
+	return min + (i % (max - min));
+}
+
 qfloat qfloat_to_uint16(qfloat out) {
 	float samp = Q_FLOAT(out);
-	return samp*8000.0;
+	return samp*32000.0;
 }

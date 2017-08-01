@@ -5,12 +5,22 @@
  */
 
 #include "qmusic.h"
-/*
-float mtof(float f)
-{
-	return (8.17579891564 * exp(.0577622650 * f));
+
+
+qfloat qmtof(int f) {
+	static qfloat a = QFLOAT(8.17579891564);
+	static qfloat b = QFLOAT(0.0577622650);
+	return qmul(a, qexp(qmul(b, QINT(f))));
 }
 
+
+//
+//
+//float mtof(float f)
+//{
+//	return (8.17579891564 * exp(.0577622650 * f));
+//}
+/*
 float ftom(float f)
 {
 	return (17.3123405046 * log(.12231220585 * f));

@@ -10,7 +10,7 @@
  *    \  \:\        \  \:\         |  |:/       \  \::/       \  \::/        |  |:|   
  *     \__\/         \__\/         |__|/         \__\/         \__\/         |__|/   
  *
- *  Description: 
+ *  Description: Musical helpers
  *				 
  *  scales.h, created by Marek Bereza on 05/02/2013.
  */
@@ -29,7 +29,8 @@
 #define MINOR 0
 
 
-qfloat mtof(int m);
+qfloat qmtof(int m);
+//float mtof(int m);
 int ftom(qfloat f);
 
 int getScaled(int pos, int scale);

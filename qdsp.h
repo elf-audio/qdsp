@@ -69,6 +69,7 @@ public:
 	}
 	
 	void setFrequency(qfloat f) {
+		if(f<0) f = -f;
 		phaseInc = qmul(f, QTWO_PI_OVER_SR);
 	}
 	
@@ -204,6 +205,9 @@ public:
 	}
 };
 
+
+
+
 static inline qfloat qclip(qfloat inp) {
 	if(inp>qfloat_1) {
 		return qfloat_1;
@@ -327,3 +331,136 @@ public:
 	}
 };
 #endif
+
+
+
+
+class QFloatParam {
+public:
+	
+	QFloatParam(qfloat val = 0) {
+		set(val);
+		setSpeed(QFLOAT(0.995));
+	}
+	void set(qfloat val) {
+		this->val = val;
+		this->target = val;
+	}
+	
+	void setSpeed(qfloat lerp) {
+		this->lerp = lerp;
+		this->mlerp = qfloat_1 - this->lerp;
+	}
+	qfloat get() {
+		val = qmul(val, lerp) + qmul(target, mlerp);
+		return val;
+	}
+	
+	void update(qfloat target) {
+		this->target = target;
+	}
+private:
+	qfloat val;
+	qfloat target;
+	qfloat lerp;
+	qfloat mlerp;
+};
+
+
+
+
+
+class QDelay {
+public:
+	int pos;
+	qfloat feedback;
+	qfloat mix;
+	qfloat *buffer;
+	int maxDelay;
+	int delayTime;
+	QLPF filter;
+	QDelay() {
+		filter.setAmount(0);
+		pos = 0;
+		delayTime = 1000;
+		feedback = QFLOAT(0.5);
+		mix = QFLOAT(0.5);
+		maxDelay = 10000;
+		buffer = new qfloat[maxDelay];
+		for(int i = 0; i < maxDelay; i++) {
+			buffer[i] = 0;
+		}
+	}
+	
+	qfloat process(qfloat in) {
+		pos++;
+		pos %= delayTime;
+		qfloat out = buffer[pos];
+		buffer[pos] = filter.filter(qmul(feedback,out) + in);
+		return in + qmul((out - in), mix);
+	}
+};
+
+
+
+static inline qfloat QReadFrac(qfloat *buff, qfloat index, int length);
+static inline qfloat LReadFrac(qfloat *buff, lfloat index, int length);
+
+
+
+class QInterpolatingDelay {
+public:
+	
+	qfloat *buffer;
+	
+	qfloat	actualDelayTime;
+	int		writeHead;
+	qfloat	readHead;
+	int		delayTime;
+	qfloat	feedback;
+	qfloat mix;
+	qfloat lerpAmt;
+	qfloat lerpAmtM;
+	int MAX_DELAY;
+	
+	QInterpolatingDelay(int MAX_DELAY) {
+		this->MAX_DELAY = MAX_DELAY;
+		actualDelayTime = 0;
+		writeHead		= 0;
+		readHead		= 0;
+		delayTime		= 100;
+		feedback		= QFLOAT(0.5);
+		mix = QFLOAT(0.5);
+		buffer = new qfloat [MAX_DELAY];
+		
+		for(int i =0; i < MAX_DELAY; i++) {
+			buffer[i] = 0;
+		}
+		
+		lerpAmt = QFLOAT(0.99975);
+		lerpAmtM = qfloat_1 - lerpAmt;
+		
+	}
+	
+	
+	
+	qfloat process(qfloat inp) {
+		
+		writeHead++;
+		writeHead %= MAX_DELAY;
+		
+		
+		actualDelayTime = qmul(actualDelayTime, lerpAmt) + qmul(QINT(delayTime), lerpAmtM);
+		
+		readHead = (writeHead * qfloat_1) - actualDelayTime;
+		if(readHead<0) readHead += MAX_DELAY * qfloat_1;
+		
+		float out = QReadFrac(buffer, readHead, MAX_DELAY);
+		
+		buffer[writeHead] = qmul(out, feedback) + inp;
+		
+		return inp + qmul((out - inp), mix);
+		
+	}
+};
+
