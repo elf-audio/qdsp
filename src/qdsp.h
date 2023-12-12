@@ -7,9 +7,8 @@
 //
 
 #pragma once
-
+#include <cmath>
 #include "qfloat.h"
-
 
 /*
  TODO
@@ -25,26 +24,22 @@
  
  */
 
-
 class QOnePole {
 public:
-	
 	qfloat a0;
 	qfloat b1;
-	
+
 	qfloat out;
-	QOnePole() {
-		out = 0;
-	}
-	
+	QOnePole() { out = 0; }
+
 	void calcCoeffs(float freq) {
 		// Coefficient calculation:
 		// x = exp(-2.0*pi*freq/samplerate);
 		// a0 = 1.0-x;
 		// b1 = -x;
-		
-		qfloat x = qexp(QFLOAT(-2.0*PI*freq/44100.f));
-		
+
+		qfloat x = qexp(QFLOAT(-2.0 * M_PI * freq / 44100.f));
+
 		a0 = qfloat_1 - x;
 		b1 = -x;
 	}
@@ -52,138 +47,109 @@ public:
 		out = qmul(a0, in) - qmul(b1, out);
 		return out;
 	}
-	qfloat hpf(qfloat in) {
-		return in - lpf(in);
-	}
+	qfloat hpf(qfloat in) { return in - lpf(in); }
 };
-
-
-
 
 class QOsc {
 public:
 	qfloat phaseInc;
 	qfloat phase;
-	QOsc() {
-		setFrequency(QFLOAT(200));
-	}
-	
+	QOsc() { setFrequency(QFLOAT(200)); }
+
 	void setFrequency(qfloat f) {
-		if(f<0) f = -f;
+		if (f < 0) f = -f;
 		phaseInc = qmul(f, QTWO_PI_OVER_SR);
 	}
-	
+
 	qfloat getSample() {
 		phase += phaseInc;
-		if(phase>Q2PI) {
+		if (phase > Q2PI) {
 			phase -= Q2PI;
 		}
 		return qfloat_sin_interp(phase);
 	}
 };
 
-
 class QSawOsc {
 public:
 	qfloat phaseInc;
 	qfloat phase;
-	QSawOsc() {
-		setFrequency(QFLOAT(200));
-	}
-	
-	void setFrequency(qfloat f) {
-		phaseInc = qmul(f, QTWO_PI_OVER_SR);
-	}
-	
+	QSawOsc() { setFrequency(QFLOAT(200)); }
+
+	void setFrequency(qfloat f) { phaseInc = qmul(f, QTWO_PI_OVER_SR); }
+
 	qfloat getSample() {
 		phase += phaseInc;
-		if(phase>Q2PI) {
+		if (phase > Q2PI) {
 			phase -= Q2PI;
-			
 		}
 		return qfloat_saw_interp(phase);
 	}
 };
 
 // maps [-1, 1]  to  [0, 1]
-qfloat qlfo(qfloat val);
-
-
+qfloat qlfo(qfloat val) {
+	return qmuls(qfloat_1 + val, Q05);
+}
 
 // single shot drum envelope (just attack and release)
 class QAREnvelope {
 public:
-	
-	enum {
-		NONE,
-		ATTACKING,
-		RELEASING
-	};
+	enum { NONE, ATTACKING, RELEASING };
 	qfloat Q1_44100;
 	QAREnvelope() {
-		Q1_44100 = QFLOAT(1.f/44100.f);
-		pos = -1;
-		
+		Q1_44100 = QFLOAT(1.f / 44100.f);
+		pos		 = -1;
+
 		currVal = 0;
-		STATE = NONE;
-		
+		STATE	= NONE;
+
 		setEnvelope(QFLOAT(0.001), QFLOAT(0.1));
 	}
-	
+
 	void setEnvelope(qfloat attackTime, qfloat releaseTime) {
 		setAttack(attackTime);
 		setRelease(releaseTime);
 	}
-	
-	void setAttack(qfloat attack) {
-		attackDelta  = qmul(qdiv(qfloat_1, attack), Q1_44100);
-	}
-	
-	void setRelease(qfloat release) {
-		releaseDelta = qmul(qdiv(qfloat_1, release), Q1_44100);
-	}
-	
+
+	void setAttack(qfloat attack) { attackDelta = qmul(qdiv(qfloat_1, attack), Q1_44100); }
+
+	void setRelease(qfloat release) { releaseDelta = qmul(qdiv(qfloat_1, release), Q1_44100); }
+
 	qfloat currVal;
 	int STATE;
-	
-	
+
 	qfloat getSample() {
-		
-		if(STATE==ATTACKING) {
+		if (STATE == ATTACKING) {
 			currVal += attackDelta;
-			if(currVal>qfloat_1) {
-				STATE = RELEASING;
+			if (currVal > qfloat_1) {
+				STATE	= RELEASING;
 				currVal = qfloat_1;
 			}
 			// give it a nice curve on the way out
 			return qmul(currVal, currVal);
-			
-		} else if(STATE==RELEASING) {
+
+		} else if (STATE == RELEASING) {
 			currVal -= releaseDelta;
-			if(currVal<0) {
+			if (currVal < 0) {
 				currVal = 0;
-				STATE = NONE;
+				STATE	= NONE;
 			}
 			// give it a nice curve on the way out
 			return qmul(currVal, currVal);
-			
+
 		} else {
 			return 0;
 		}
 	}
-	
-	void trigger() {
-		STATE = ATTACKING;
-	}
+
+	void trigger() { STATE = ATTACKING; }
+
 private:
 	int pos;
 	qfloat attackDelta;
 	qfloat releaseDelta;
-	
 };
-
-
-
 
 class QLPF {
 public:
@@ -191,13 +157,13 @@ public:
 	qfloat amt, mAmt;
 	QLPF() {
 		filt = 0;
-		amt = QFLOAT(0.5);
+		amt	 = QFLOAT(0.5);
 		mAmt = qfloat_1 - amt;
 	}
-	
+
 	void setAmount(qfloat amt) {
 		this->amt = amt;
-		mAmt = qfloat_1 - amt;
+		mAmt	  = qfloat_1 - amt;
 	}
 	qfloat filter(qfloat inp) {
 		filt = qmul(filt, amt) + qmul(inp, mAmt);
@@ -205,19 +171,15 @@ public:
 	}
 };
 
-
-
-
 static inline qfloat qclip(qfloat inp) {
-	if(inp>qfloat_1) {
+	if (inp > qfloat_1) {
 		return qfloat_1;
-	} else if(inp<-qfloat_1) {
+	} else if (inp < -qfloat_1) {
 		return -qfloat_1;
 	} else {
 		return inp;
 	}
 }
-
 
 class QKarplusStrong {
 public:
@@ -229,45 +191,41 @@ public:
 	int pos;
 	qfloat decay;
 	QKarplusStrong() {
-		decay = QFLOAT(0.99);
-		inputPos = 0;
-		outputPos = 1;
+		decay	   = QFLOAT(0.99);
+		inputPos   = 0;
+		outputPos  = 1;
 		DELAY_SIZE = 512;
-		pos = 0;
+		pos		   = 0;
 		setCoeffs(QFLOAT(0.5));
 	}
-	
+
 	qfloat getDelayedValue() {
 		outputPos++;
-		if(outputPos>=DELAY_SIZE) {
+		if (outputPos >= DELAY_SIZE) {
 			outputPos = 0;
 		}
 		return buffer[outputPos];
 	}
-	
+
 	QLPF filter;
-	void setCoeffs(qfloat amt) {
-		filter.setAmount(amt);
-	}
+	void setCoeffs(qfloat amt) { filter.setAmount(amt); }
 	void addDelay(qfloat sample) {
-		inputPos = outputPos-1;
-		if(inputPos<0) {
-			inputPos = DELAY_SIZE-1;
+		inputPos = outputPos - 1;
+		if (inputPos < 0) {
+			inputPos = DELAY_SIZE - 1;
 		}
 		buffer[inputPos] = sample;
 	}
-	
+
 	void setLength(int length) {
-		if(length>KARPLUS_STRONG_MAX_DELAY) length = KARPLUS_STRONG_MAX_DELAY;
+		if (length > KARPLUS_STRONG_MAX_DELAY) length = KARPLUS_STRONG_MAX_DELAY;
 		DELAY_SIZE = length;
 	}
-	void trigger() {
-		pos = 0;
-	}
+	void trigger() { pos = 0; }
 	qfloat getSample() {
-		if(pos<50) pos++;
-		qfloat noise = QFLOAT(qranduf());
-		if(pos>=50) {
+		if (pos < 50) pos++;
+		qfloat noise = QFLOAT(qrandf());
+		if (pos >= 50) {
 			noise = 0;
 		}
 		qfloat out = noise + filter.filter(getDelayedValue());
@@ -276,13 +234,8 @@ public:
 	}
 };
 
-
-
-
-
-
 #if 0
-#include <math.h> // get rid of this!!!!!
+#	include <math.h> // get rid of this!!!!!
 // THSI DOESNT WORK YET
 class QResoLPF {
 public:
@@ -332,43 +285,34 @@ public:
 };
 #endif
 
-
-
-
 class QFloatParam {
 public:
-	
 	QFloatParam(qfloat val = 0) {
 		set(val);
 		setSpeed(QFLOAT(0.995));
 	}
 	void set(qfloat val) {
-		this->val = val;
+		this->val	 = val;
 		this->target = val;
 	}
-	
+
 	void setSpeed(qfloat lerp) {
-		this->lerp = lerp;
+		this->lerp	= lerp;
 		this->mlerp = qfloat_1 - this->lerp;
 	}
 	qfloat get() {
 		val = qmul(val, lerp) + qmul(target, mlerp);
 		return val;
 	}
-	
-	void update(qfloat target) {
-		this->target = target;
-	}
+
+	void update(qfloat target) { this->target = target; }
+
 private:
 	qfloat val;
 	qfloat target;
 	qfloat lerp;
 	qfloat mlerp;
 };
-
-
-
-
 
 class QDelay {
 public:
@@ -381,48 +325,60 @@ public:
 	QLPF filter;
 	QDelay() {
 		filter.setAmount(0);
-		pos = 0;
+		pos		  = 0;
 		delayTime = 1000;
-		feedback = QFLOAT(0.5);
-		mix = QFLOAT(0.5);
-		maxDelay = 10000;
-		buffer = new qfloat[maxDelay];
-		for(int i = 0; i < maxDelay; i++) {
+		feedback  = QFLOAT(0.5);
+		mix		  = QFLOAT(0.5);
+		maxDelay  = 10000;
+		buffer	  = new qfloat[maxDelay];
+		for (int i = 0; i < maxDelay; i++) {
 			buffer[i] = 0;
 		}
 	}
-	
+
 	qfloat process(qfloat in) {
 		pos++;
 		pos %= delayTime;
-		qfloat out = buffer[pos];
-		buffer[pos] = filter.filter(qmul(feedback,out) + in);
+		qfloat out	= buffer[pos];
+		buffer[pos] = filter.filter(qmul(feedback, out) + in);
 		return in + qmul((out - in), mix);
 	}
 };
 
+static inline qfloat QReadFrac(qfloat *buff, qfloat index, int length) {
+	int i = Q_INT(index);
+	int j = i + 1;
+	if (j >= length) j -= length;
 
+	qfloat frac = index - QINT(i);
 
-static inline qfloat QReadFrac(qfloat *buff, qfloat index, int length);
-static inline qfloat LReadFrac(qfloat *buff, lfloat index, int length);
+	return qmul(buff[i], (qfloat_1 - frac)) + qmul(buff[j], frac);
+}
 
+static inline qfloat LReadFrac(qfloat *buff, lfloat index, int length) {
+	int i = L_INT(index);
+	int j = i + 1;
+	if (j >= length) j -= length;
 
+	qfloat frac = L_Q(index - LINT(i)); // Q257 better not cast to a float or this will be slow
+
+	return qmul(buff[i], (qfloat_1 - frac)) + qmul(buff[j], frac);
+}
 
 class QInterpolatingDelay {
 public:
-	
 	qfloat *buffer;
-	
-	qfloat	actualDelayTime;
-	int		writeHead;
-	qfloat	readHead;
-	int		delayTime;
-	qfloat	feedback;
+
+	qfloat actualDelayTime;
+	int writeHead;
+	qfloat readHead;
+	int delayTime;
+	qfloat feedback;
 	qfloat mix;
 	qfloat lerpAmt;
 	qfloat lerpAmtM;
 	int MAX_DELAY;
-	
+
 	QInterpolatingDelay(int MAX_DELAY) {
 		this->MAX_DELAY = MAX_DELAY;
 		actualDelayTime = 0;
@@ -430,37 +386,30 @@ public:
 		readHead		= 0;
 		delayTime		= 100;
 		feedback		= QFLOAT(0.5);
-		mix = QFLOAT(0.5);
-		buffer = new qfloat [MAX_DELAY];
-		
-		for(int i =0; i < MAX_DELAY; i++) {
+		mix				= QFLOAT(0.5);
+		buffer			= new qfloat[MAX_DELAY];
+
+		for (int i = 0; i < MAX_DELAY; i++) {
 			buffer[i] = 0;
 		}
-		
-		lerpAmt = QFLOAT(0.99975);
+
+		lerpAmt	 = QFLOAT(0.99975);
 		lerpAmtM = qfloat_1 - lerpAmt;
-		
 	}
-	
-	
-	
+
 	qfloat process(qfloat inp) {
-		
 		writeHead++;
 		writeHead %= MAX_DELAY;
-		
-		
+
 		actualDelayTime = qmul(actualDelayTime, lerpAmt) + qmul(QINT(delayTime), lerpAmtM);
-		
+
 		readHead = (writeHead * qfloat_1) - actualDelayTime;
-		if(readHead<0) readHead += MAX_DELAY * qfloat_1;
-		
+		if (readHead < 0) readHead += MAX_DELAY * qfloat_1;
+
 		float out = QReadFrac(buffer, readHead, MAX_DELAY);
-		
+
 		buffer[writeHead] = qmul(out, feedback) + inp;
-		
+
 		return inp + qmul((out - inp), mix);
-		
 	}
 };
-
